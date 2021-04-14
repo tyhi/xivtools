@@ -58,8 +58,8 @@ struct UiState {
 }
 
 impl Default for UiState {
-    fn default() -> UiState {
-        UiState {
+    fn default() -> Self {
+        Self {
             previous_window_size: [0.0, 0.0],
             modal_popup: ModalText {
                 has_msg: false,

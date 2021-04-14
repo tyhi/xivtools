@@ -20,7 +20,7 @@ pub struct Options {
 
 impl Default for Options {
     fn default() -> Self {
-        Options {
+        Self {
             gear: [0; xiv::JOB_CNT],
             specialist: [false; xiv::JOB_CNT],
             use_trial_synthesis: false,

@@ -1,7 +1,3 @@
-// const generics are not complete and only available in nightly
-#![allow(incomplete_features)]
-#![feature(const_generics)]
-
 use log;
 use std::ffi::{c_void, CStr};
 use std::fmt;
@@ -66,7 +62,7 @@ pub enum SignatureType {
 
 impl Default for SignatureType {
     fn default() -> Self {
-        SignatureType::Absolute { offset: 0 }
+        Self::Absolute { offset: 0 }
     }
 }
 #[derive(Default, Debug)]
@@ -113,12 +109,12 @@ impl Process {
                     continue;
                 }
 
-                let name_str = CStr::from_ptr(name_buf.as_ptr() as *const c_char)
+                let name_str = CStr::from_ptr(name_buf.as_ptr().cast::<i8>())
                     .to_string_lossy()
                     .to_string();
                 if name_str == exe_name {
-                    let modules = Process::get_process_modules(handle)?;
-                    return Ok(Process {
+                    let modules = Self::get_process_modules(handle)?;
+                    return Ok(Self {
                         name: name_str,
                         handle,
                         modules,
@@ -140,7 +136,7 @@ impl Process {
                 modules.as_mut_ptr(),
                 (mem::size_of::<isize>() * modules.len()) as u32,
                 &mut needed,
-                2u32,
+                2_u32,
             ) == BOOL::from(false)
             {
                 return Err(ProcessError::ModuleEnumeration(
@@ -157,17 +153,17 @@ impl Process {
                 if K32EnumProcessModulesEx(
                     hnd,
                     module as *mut isize,
-                    *(buf.as_mut_ptr() as *mut u32),
+                    *buf.as_mut_ptr().cast::<u32>(),
                     buf.len() as *mut u32,
-                    2u32,
+                    2_u32,
                 ) == BOOL(0)
                 {
                     return Err(ProcessError::ModuleName(hnd.0 as u32, GetLastError().0));
                 }
 
-                let name = CStr::from_ptr(buf.as_ptr() as *const _)
+                let name = CStr::from_ptr(buf.as_ptr().cast())
                     .to_string_lossy()
-                    .to_owned()
+                    .clone()
                     .to_string();
 
                 let mut module_info = MODULEINFO::default();
@@ -202,7 +198,7 @@ impl Process {
             if ReadProcessMemory(
                 self.handle,
                 addr as *mut c_void,
-                buf as *mut c_void,
+                buf.cast::<std::ffi::c_void>(),
                 sz,
                 read,
             ) == BOOL::from(false)
@@ -222,44 +218,41 @@ pub struct UnknownField<const N: usize> {
 
 impl<const N: usize> fmt::Debug for UnknownField<N> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        unsafe {
-            for byte in self.data.iter() {
-                write!(f, " {:02x}", byte)?;
-            }
+        for byte in self.data.iter() {
+            write!(f, " {:02x}", byte)?;
         }
+
         Ok(())
     }
 }
 
 impl<const N: usize> PartialEq for UnknownField<N> {
     fn eq(&self, other: &Self) -> bool {
-        unsafe {
-            for pair in self.data.iter().zip(other.data.iter()) {
-                if pair.0 != pair.1 {
-                    return false;
-                }
+        for pair in self.data.iter().zip(other.data.iter()) {
+            if pair.0 != pair.1 {
+                return false;
             }
         }
+
         true
     }
 }
 
 impl<const N: usize> Default for UnknownField<N> {
-    fn default() -> UnknownField<N> {
-        UnknownField { data: [0; N] }
+    fn default() -> Self {
+        Self { data: [0; N] }
     }
 }
 
 impl<const N: usize> Eq for UnknownField<N> {}
 
 use std::ops::Deref;
-use std::os::raw::c_char;
 
 impl<T> Deref for RemoteStruct<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        unsafe { &self.t }
+        &self.t
     }
 }
 
@@ -272,12 +265,13 @@ pub struct RemoteStruct<T> {
 }
 
 impl<T: std::default::Default> RemoteStruct<T> {
+    #[must_use]
     pub fn new(process: Process, address: u64) -> Self {
         log::debug!(
             "Creating new RemoteStruct @ {:#x}",
             address + process.modules[0].base
         );
-        RemoteStruct {
+        Self {
             t: T::default(),
             address,
             module: 0,
@@ -299,10 +293,10 @@ impl<T: std::default::Default> RemoteStruct<T> {
             ) {
                 BOOL(0) => Err(MemoryError::Read(read_addr, GetLastError().0, read)),
                 _ => {
-                    if read != t_size {
-                        Err(MemoryError::IncorrectSize(t_size, read))
-                    } else {
+                    if read == t_size {
                         Ok(())
+                    } else {
+                        Err(MemoryError::IncorrectSize(t_size, read))
                     }
                 }
             }

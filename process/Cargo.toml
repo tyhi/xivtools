@@ -10,4 +10,3 @@ edition = "2018"
 thiserror = "1.0.20"
 log = "0.4.11"
 bindings = { path = "../bindings" }
-

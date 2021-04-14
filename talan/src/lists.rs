@@ -69,7 +69,7 @@ mod test {
     0x Item Name
     1000x Item Name";
 
-    const TEST_DATA_RESULTS: [(&'static str, u32); 3] =
+    const TEST_DATA_RESULTS: [(&str, u32); 3] =
         [("ItemName", 3), ("Item Name", 1), ("Item Name", 1000)];
 
     #[test]

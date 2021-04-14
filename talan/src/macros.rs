@@ -4,7 +4,7 @@ use anyhow::{anyhow, Result};
 use imgui::ImString;
 use serde::Deserialize;
 use std::fmt;
-use std::path::PathBuf;
+use std::path::Path;
 
 // The |Toml| variant structures are used entirely for deserializing
 // from a user friendly format into the actions necessary for Talan.
@@ -87,7 +87,7 @@ pub fn read_macros_from_buffer(buffer: &str, out_vec: &mut Vec<Macro>) -> Result
     Ok(())
 }
 
-pub fn read_macros_from_file(path: &PathBuf, out_vec: &mut Vec<Macro>) -> Result<()> {
+pub fn read_macros_from_file(path: &Path, out_vec: &mut Vec<Macro>) -> Result<()> {
     read_macros_from_buffer(&std::fs::read_to_string(path)?, out_vec)
 }
 
@@ -202,7 +202,7 @@ pub fn get_macro_for_recipe(macros: &[Macro], recipe: &recipe::Recipe, specialis
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_line, MacroFileToml};
+    use super::{parse_line, read_macros_from_buffer, MacroFileToml};
     use crate::action::ACTIONS;
     use crate::recipe::Recipe;
 
@@ -265,12 +265,12 @@ mod tests {
         recipe_70.durability = 70;
         recipe_80.durability = 80;
         let mut macros = Vec::new();
-        assert!(super::read_macros_from_buffer(MACRO_BUFFER, &mut macros).is_ok());
-        assert!(super::get_macro_for_recipe(&macros, &recipe_35, false) == 0);
-        assert!(super::get_macro_for_recipe(&macros, &recipe_40, false) == 2);
-        assert!(super::get_macro_for_recipe(&macros, &recipe_60, false) == 0);
-        assert!(super::get_macro_for_recipe(&macros, &recipe_70, false) == 2);
-        assert!(super::get_macro_for_recipe(&macros, &recipe_80, false) == 1);
+        assert!(read_macros_from_buffer(MACRO_BUFFER, &mut macros).is_ok());
+        assert_eq!(super::get_macro_for_recipe(&macros, &recipe_35, false), 0);
+        assert_eq!(super::get_macro_for_recipe(&macros, &recipe_40, false), 2);
+        assert_eq!(super::get_macro_for_recipe(&macros, &recipe_60, false), 0);
+        assert_eq!(super::get_macro_for_recipe(&macros, &recipe_70, false), 2);
+        assert_eq!(super::get_macro_for_recipe(&macros, &recipe_80, false), 1);
     }
 
     #[test]

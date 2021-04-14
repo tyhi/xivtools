@@ -60,7 +60,7 @@ fn print_retainers(retainers: &[retainer::Retainer]) {
                 .yellow(),
                 style(CityState::from(retainer.home_city)).magenta(),
                 if retainer.available {
-                    style("✓").green()
+                    style("\u{2713}").green()
                 } else {
                     style("x").red()
                 },
@@ -102,7 +102,7 @@ fn main() -> Result<(), Error> {
         }
 
         // Cache the retainer state so we can freely do process reads without reference ownership.
-        let r_cache = retainer_tbl.retainers.clone();
+        let r_cache = retainer_tbl.retainers;
         for (rdx, (retainer, pos)) in r_cache.iter().zip(display_order.iter()).enumerate() {
             if !retainer.employed() {
                 continue;
@@ -129,12 +129,12 @@ fn main() -> Result<(), Error> {
                     retainer_tbl.read()?;
 
                     // Did the venture completion date/time change from what we have cached?
-                    if retainer_tbl.retainers[rdx].venture_complete != done {
-                        updated = true;
-                    } else {
+                    if retainer_tbl.retainers[rdx].venture_complete == done {
                         log::error!("{}'s venture did not update. Retrying.", retainer.name());
                         menu_open = false;
                         retries -= 1;
+                    } else {
+                        updated = true;
                     }
                 }
 
@@ -170,7 +170,7 @@ fn main() -> Result<(), Error> {
         }
 
         if print_next {
-            let next_time = Local.timestamp(next.venture_complete as i64, 0);
+            let next_time = Local.timestamp(i64::from(next.venture_complete), 0);
             log::info!(
                 "Next: {}'s \"{}\" will be done at {}",
                 next.name(),

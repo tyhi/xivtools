@@ -64,7 +64,7 @@ pub struct Worker {
 
 impl Worker {
     pub fn new(rx: Receiver<Request>, tx: Sender<Response>) -> Self {
-        Worker {
+        Self {
             rx,
             tx,
             macros: Vec::new(),
@@ -122,7 +122,7 @@ impl Worker {
                         Ok(())
                     }
                     Request::Craft { options, tasks } => {
-                        self.craft_request(options, tasks, &self.macros[..])
+                        self.craft_request(options, &tasks, &self.macros[..])
                     }
                     unknown => Err(anyhow!("Unexpected RPC received: {:?}", unknown)),
                 };
@@ -137,7 +137,7 @@ impl Worker {
     fn craft_request(
         &self,
         options: config::Options,
-        tasks: Vec<task::Task>,
+        tasks: &[task::Task],
         macros: &[Macro],
     ) -> Result<(), Error> {
         // Send a full status update to the main thread after completing
@@ -148,17 +148,15 @@ impl Worker {
 
         // Check whether crafting should continue after each craft.
         let continue_fn = || -> bool {
-            if let Some(r) = self.try_receive() {
-                if let Request::StopCrafting = r {
-                    return false;
-                }
+            if let Some(Request::StopCrafting) = self.try_receive() {
+                return false;
             }
             true
         };
 
         // If init throws an error we'll have a log to console anyway.
         let handle = xiv::init()?;
-        let craft = craft::Crafter::new(handle, &options, &macros, &tasks, status_fn, continue_fn);
+        let craft = craft::Crafter::new(handle, &options, macros, tasks, status_fn, continue_fn);
 
         // TODO: Do something useful with errors here.
         craft?.craft_items()?;
@@ -197,10 +195,10 @@ mod test {
         match rx.recv()? {
             Response::Recipe { recipe, count } => {
                 let r = recipe.unwrap();
-                assert!(r.name == item1);
-                assert!(r.job == 1); // BSM
-                assert!(r.index == 0);
-                assert!(count == 1);
+                assert_eq!(r.name, item1);
+                assert_eq!(r.job, 1); // BSM
+                assert_eq!(r.index, 0);
+                assert_eq!(count, 1);
             }
             _ => panic!("unexpected response"),
         }
@@ -215,10 +213,10 @@ mod test {
         match rx.recv()? {
             Response::Recipe { recipe, count } => {
                 let r = recipe.unwrap();
-                assert!(r.name == item2);
-                assert!(r.job == 5); // WVR
-                assert!(r.index == 11);
-                assert!(count == 3);
+                assert_eq!(r.name, item2);
+                assert_eq!(r.job, 5); // WVR
+                assert_eq!(r.index, 11);
+                assert_eq!(count, 3);
             }
             _ => panic!("unexpected response"),
         }

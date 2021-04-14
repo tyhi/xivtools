@@ -118,12 +118,8 @@ impl Eq for ApiRecipe {}
 
 impl Ord for ApiRecipe {
     fn cmp(&self, other: &Self) -> Ordering {
-        if let Some(ord) = self.partial_cmp(other) {
-            ord
-        } else {
-            // Fall back on comparing ID if partial_cmp fails.
-            self.CraftType.ID.cmp(&other.CraftType.ID)
-        }
+        self.partial_cmp(other)
+            .map_or_else(|| self.CraftType.ID.cmp(&other.CraftType.ID), |ord| ord)
     }
 }
 
@@ -171,7 +167,7 @@ pub fn query_recipe(item_name: &str) -> Result<Vec<ApiRecipe>, Error> {
         "RecipeLevelTable",
         "GameContentLinks",
     ];
-    let s: String = columns.iter().map(|e| e.to_string() + ",").collect();
+    let s: String = columns.iter().map(|e| (*e).to_string() + ",").collect();
     let body = ureq::get(XIVAPI_SEARCH_URL)
         .query("indexes", "Recipe")
         .query("columns", &s)

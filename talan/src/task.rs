@@ -29,8 +29,8 @@ impl fmt::Display for Task {
 }
 
 impl Task {
-    pub fn new(recipe: Recipe, count: u32) -> Task {
-        Task {
+    pub fn new(recipe: Recipe, count: u32) -> Self {
+        Self {
             specify_materials: false,
             macro_id: 0,
             quantity: count,
@@ -64,7 +64,7 @@ pub struct Status {
 
 impl<'a> From<&'a Task> for Status {
     fn from(task: &'a Task) -> Self {
-        Status {
+        Self {
             name: task.recipe.name.clone(),
             finished: 0,
             total: task.quantity as u32,

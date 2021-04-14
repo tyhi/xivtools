@@ -34,17 +34,17 @@ impl From<&xivapi::ApiRecipe> for Recipe {
         ];
 
         let mut mats = Vec::new();
-        for (opt_mat, cnt) in recipe_mats.iter() {
+        for (opt_mat, cnt) in &recipe_mats {
             if let Some(mat) = opt_mat {
                 mats.push(RecipeMaterial {
                     id: mat.ID,
-                    name: mat.Name.to_owned(),
+                    name: mat.Name.clone(),
                     count: *cnt,
                 });
             }
         }
 
-        Recipe {
+        Self {
             level: item.RecipeLevelTable.ClassJobLevel,
             durability: (item.RecipeLevelTable.Durability * item.DurabilityFactor) / 100,
             difficulty: (item.RecipeLevelTable.Difficulty * item.DifficultyFactor) / 100,
@@ -64,7 +64,7 @@ impl Recipe {
     // Searches the |results| slice passed back to us by Xivapi for a given item's recipe.
     // If |use_first| is set, then we will use the first item that matches the name, regardless
     // of the job that owns the recipe.
-    pub fn filter(results: &[xivapi::ApiRecipe], name: &str, job: Option<u32>) -> Option<Recipe> {
+    pub fn filter(results: &[xivapi::ApiRecipe], name: &str, job: Option<u32>) -> Option<Self> {
         for (search_index, recipe) in results.iter().enumerate() {
             // Items like 'Cloud Pearl' also have 'Cloud Pearl Components' in
             // the results, and can have matches for multiple jobs. If there's
@@ -78,7 +78,7 @@ impl Recipe {
                     || job.is_none()
                     || job.unwrap() == recipe.CraftType.ID as u32)
             {
-                let mut r: Recipe = Recipe::from(recipe);
+                let mut r = Self::from(recipe);
                 r.index = search_index;
                 return Some(r);
             }
@@ -121,7 +121,7 @@ mod test {
     fn no_job_specified() -> Result<()> {
         // Cloud Pearl exists for all jobs, so the first result should be CRP.
         let tests = [("Cloud Pearl", 0), ("Tungsten Steel Ingot", 1)];
-        for test in tests.iter() {
+        for test in &tests {
             let recipe = Recipe::filter(&query_recipe(test.0)?[..], test.0, None).unwrap();
             assert_eq!(recipe.name, test.0);
             assert_eq!(recipe.job, test.1);
@@ -132,7 +132,7 @@ mod test {
     #[test]
     fn specialization() -> Result<()> {
         let tests = [("Cloud Pearl", false), ("Emerald Barding", true)];
-        for test in tests.iter() {
+        for test in &tests {
             let recipe = Recipe::filter(&query_recipe(test.0)?[..], test.0, None).unwrap();
             assert_eq!(recipe.name, test.0);
             assert_eq!(recipe.specialist, test.1);

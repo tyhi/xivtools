@@ -22,6 +22,7 @@ const FONT_SIZE: f64 = 16.0;
 // with the following modifications:
 // - Talan's visual style is configured.
 // - Font was changed.
+#[must_use]
 pub fn init(width: f64, height: f64, title: &str) -> System {
     let title = match title.rfind('/') {
         Some(idx) => title.split_at(idx + 1).1,
@@ -48,7 +49,7 @@ pub fn init(width: f64, height: f64, title: &str) -> System {
     {
         let gl_window = display.gl_window();
         let window = gl_window.window();
-        platform.attach_window(imgui.io_mut(), &window, HiDpiMode::Rounded);
+        platform.attach_window(imgui.io_mut(), window, HiDpiMode::Rounded);
     }
 
     let hidpi_factor = platform.hidpi_factor();
@@ -128,7 +129,7 @@ impl System {
 
             let mut target = display.draw();
             target.clear_color_srgb(1.0, 1.0, 1.0, 1.0);
-            platform.prepare_render(&ui, &window);
+            platform.prepare_render(&ui, window);
             let draw_data = ui.render();
             renderer
                 .render(&mut target, draw_data)

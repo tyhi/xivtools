@@ -78,7 +78,9 @@ where
             }
 
             // Swap our job if necessary. It may have been used in the previous task.
-            if job != task.recipe.job {
+            if job == task.recipe.job {
+                log::trace!("already {}, no need to change job.", xiv::JOBS[task_job]);
+            } else {
                 log::trace!("changing job to {}.", xiv::JOBS[task_job]);
                 log::info!("changing to gearset {}", self.options.gear[task_job]);
                 xiv::ui::press_enter(self.handle);
@@ -94,14 +96,12 @@ where
                 xiv::ui::wait(1.0);
 
                 job = task.recipe.job;
-            } else {
-                log::trace!("already {}, no need to change job.", xiv::JOBS[task_job]);
             }
 
             // Navigate to the correct recipe based on the index provided
-            self.select_recipe(&task);
+            self.select_recipe(task);
             if !self.options.use_trial_synthesis {
-                self.select_materials(&task);
+                self.select_materials(task);
             }
             for task_index in 1..=task.quantity {
                 log::info!(
@@ -264,7 +264,7 @@ where
         }
         xiv::ui::press_confirm(self.handle);
         self.wait_for_state(&[xiv::craft::State::READY])?;
-        let mut previous_state = self.game_state.clone();
+        let mut previous_state = *self.game_state;
         for action in actions {
             // If a macro finished early by way of capping progress earlier than
             // expected, or just generally failing by running out of durability
@@ -289,7 +289,7 @@ where
             xiv::ui::send_string(self.handle, &format!("/ac \"{}\"", &action.name));
             xiv::ui::press_enter(self.handle);
             self.wait_for_step(&previous_state)?;
-            previous_state = self.game_state.clone();
+            previous_state = *self.game_state;
         }
 
         // At the end of this sequence the cursor should have selected the recipe
