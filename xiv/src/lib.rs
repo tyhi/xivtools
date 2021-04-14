@@ -13,7 +13,7 @@ pub use venture::Venture;
 
 use anyhow::{anyhow, Error, Result};
 use bindings::Windows::Win32::{
-    SystemServices::{BOOL, PWSTR},
+    SystemServices::{BOOL, FALSE, PWSTR},
     WindowsAndMessaging::{EnumWindows, GetWindowTextW, HWND, LPARAM},
 };
 
@@ -41,7 +41,7 @@ pub fn init() -> Result<XivHandle, Error> {
         // TODO: Figure out Rust error handling rather than just panicking inside a lib
         // method.
         match EnumWindows(Some(enum_callback), LPARAM(&mut arg as *mut HWND as isize)) {
-            BOOL(0) => Ok(XivHandle {
+            FALSE => Ok(XivHandle {
                 hwnd: arg as HWND,
                 use_slow_navigation: false,
             }),

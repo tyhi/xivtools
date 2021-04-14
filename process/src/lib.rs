@@ -10,7 +10,7 @@ use bindings::Windows::Win32::ProcessStatus::{
     MODULEINFO,
 };
 use bindings::Windows::Win32::SystemServices::{
-    OpenProcess, BOOL, HANDLE, PROCESS_ACCESS_RIGHTS, PSTR,
+    OpenProcess, FALSE, HANDLE, PROCESS_ACCESS_RIGHTS, PSTR,
 };
 
 #[derive(Debug, Error)]
@@ -78,7 +78,7 @@ impl Process {
 
         unsafe {
             if K32EnumProcesses(processes.as_mut_ptr(), processes.len() as u32, &mut needed)
-                == BOOL::from(false)
+                == FALSE
             {
                 return Err(ProcessError::ProcessEnumeration(GetLastError().0));
             }
@@ -90,7 +90,7 @@ impl Process {
                 let handle = OpenProcess(
                     PROCESS_ACCESS_RIGHTS::PROCESS_VM_READ
                         | PROCESS_ACCESS_RIGHTS::PROCESS_QUERY_INFORMATION,
-                    BOOL::from(false),
+                    FALSE,
                     process,
                 );
 
@@ -137,7 +137,7 @@ impl Process {
                 (mem::size_of::<isize>() * modules.len()) as u32,
                 &mut needed,
                 2_u32,
-            ) == BOOL::from(false)
+            ) == FALSE
             {
                 return Err(ProcessError::ModuleEnumeration(
                     hnd.0 as u32,
@@ -156,7 +156,7 @@ impl Process {
                     *buf.as_mut_ptr().cast::<u32>(),
                     buf.len() as *mut u32,
                     2_u32,
-                ) == BOOL(0)
+                ) == FALSE
                 {
                     return Err(ProcessError::ModuleName(hnd.0 as u32, GetLastError().0));
                 }
@@ -172,7 +172,7 @@ impl Process {
                     module,
                     &mut module_info,
                     mem::size_of::<MODULEINFO>() as u32,
-                ) == BOOL::from(false)
+                ) == FALSE
                 {
                     return Err(ProcessError::ModuleInformation(name, GetLastError().0));
                 }
@@ -201,7 +201,7 @@ impl Process {
                 buf.cast::<std::ffi::c_void>(),
                 sz,
                 read,
-            ) == BOOL::from(false)
+            ) == FALSE
             {
                 return Err(MemoryError::Read(addr as u64, GetLastError().0, *read));
             }
@@ -291,7 +291,7 @@ impl<T: std::default::Default> RemoteStruct<T> {
                 t_size,
                 &mut read,
             ) {
-                BOOL(0) => Err(MemoryError::Read(read_addr, GetLastError().0, read)),
+                FALSE => Err(MemoryError::Read(read_addr, GetLastError().0, read)),
                 _ => {
                     if read == t_size {
                         Ok(())
