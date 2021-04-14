@@ -128,7 +128,7 @@ where
     }
 
     fn open_craft_window(&self) {
-        xiv::ui::send_key(self.handle, 'N' as i32);
+        xiv::ui::send_key(self.handle, 'N' as u32);
         xiv::ui::wait(1.0);
     }
 

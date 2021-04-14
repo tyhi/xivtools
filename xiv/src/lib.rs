@@ -12,11 +12,10 @@ use std::fmt;
 pub use venture::Venture;
 
 use anyhow::{anyhow, Error, Result};
-use std::ffi::CStr;
-use winapi::shared::basetsd::LONG_PTR;
-use winapi::shared::minwindef::BOOL;
-use winapi::shared::windef::HWND;
-use winapi::um::winuser::{EnumWindows, GetWindowTextA};
+use bindings::Windows::Win32::{
+    SystemServices::{BOOL, PWSTR},
+    WindowsAndMessaging::{EnumWindows, GetWindowTextW, HWND, LPARAM},
+};
 
 pub const JOB_CNT: usize = 8;
 pub const JOBS: [&str; JOB_CNT] = ["CRP", "BSM", "ARM", "GSM", "LTW", "WVR", "ALC", "CUL"];
@@ -31,18 +30,18 @@ pub struct XivHandle {
 
 impl fmt::Debug for XivHandle {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Xivhandle {{ {} }}", self.hwnd as LONG_PTR as u64)
+        write!(f, "Xivhandle {{ {} }}", self.hwnd.0 as u64)
     }
 }
 
 #[cfg(windows)]
 pub fn init() -> Result<XivHandle, Error> {
-    let mut arg = std::ptr::null_mut();
+    let mut arg = HWND::NULL;
     unsafe {
         // TODO: Figure out Rust error handling rather than just panicking inside a lib
         // method.
-        match EnumWindows(Some(enum_callback), &mut arg as *mut HWND as LONG_PTR) {
-            0 => Ok(XivHandle {
+        match EnumWindows(Some(enum_callback), LPARAM(&mut arg as *mut HWND as isize)) {
+            BOOL(0) => Ok(XivHandle {
                 hwnd: arg as HWND,
                 use_slow_navigation: false,
             }),
@@ -57,18 +56,19 @@ pub fn init() -> Result<XivHandle, Error> {
 // while walking the window list. It's used to find the XIV window by title.
 //
 // To be more foolproof checking process name might be better.
-unsafe extern "system" fn enum_callback(win_hwnd: HWND, arg: LONG_PTR) -> BOOL {
-    let mut title: Vec<i8> = vec![0; 256];
-    let xiv_hwnd = arg as *mut HWND;
+extern "system" fn enum_callback(win_hwnd: HWND, arg: LPARAM) -> BOOL {
+    unsafe {
+        let mut title = [0; 256];
+        let xiv_hwnd = arg.0 as *mut HWND;
 
-    if GetWindowTextA(win_hwnd, title.as_mut_ptr(), title.len() as i32) > 0 {
-        let title = CStr::from_ptr(title.as_ptr()).to_string_lossy();
+        let len = GetWindowTextW(win_hwnd, PWSTR(title.as_mut_ptr()), title.len() as i32);
+        let title = String::from_utf16_lossy(&title[..len as usize]);
         log::debug!("found {}: {:?}, arg {:?}", title, win_hwnd, xiv_hwnd);
         if title.contains("FINAL FANTASY XIV") {
             log::info!("Found FFXIV.");
             *xiv_hwnd = win_hwnd;
-            return 0;
+            return false.into();
         }
+        true.into()
     }
-    1
 }

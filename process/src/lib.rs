@@ -3,19 +3,19 @@
 #![feature(const_generics)]
 
 use log;
-use std::ffi::CStr;
+use std::ffi::{c_void, CStr};
 use std::fmt;
 use std::mem;
-use std::ptr::null_mut;
 use thiserror::Error;
-use winapi::ctypes::c_char;
-use winapi::shared::minwindef::{DWORD, FALSE, HMODULE, LPVOID, MAX_PATH};
-use winapi::shared::ntdef::{HANDLE, LPSTR, NULL};
-use winapi::um::errhandlingapi;
-use winapi::um::memoryapi;
-use winapi::um::processthreadsapi;
-use winapi::um::psapi;
-use winapi::um::winnt::{PROCESS_QUERY_INFORMATION, PROCESS_VM_READ};
+
+use bindings::Windows::Win32::Debug::{GetLastError, ReadProcessMemory};
+use bindings::Windows::Win32::ProcessStatus::{
+    K32EnumProcessModulesEx, K32EnumProcesses, K32GetModuleBaseNameA, K32GetModuleInformation,
+    MODULEINFO,
+};
+use bindings::Windows::Win32::SystemServices::{
+    OpenProcess, BOOL, HANDLE, PROCESS_ACCESS_RIGHTS, PSTR,
+};
 
 #[derive(Debug, Error)]
 pub enum ProcessError {
@@ -77,40 +77,37 @@ pub struct Signature<'a> {
 
 impl Process {
     pub fn new(exe_name: &str) -> Result<Self, ProcessError> {
-        let mut processes: Vec<DWORD> = vec![0; 1024];
+        let mut processes = [0; 1024];
         let mut needed = 0;
 
         unsafe {
-            if psapi::EnumProcesses(
-                processes.as_mut_ptr(),
-                processes.len() as DWORD,
-                &mut needed,
-            ) == FALSE
+            if K32EnumProcesses(processes.as_mut_ptr(), processes.len() as u32, &mut needed)
+                == BOOL::from(false)
             {
-                return Err(ProcessError::ProcessEnumeration(
-                    errhandlingapi::GetLastError(),
-                ));
+                return Err(ProcessError::ProcessEnumeration(GetLastError().0));
             }
 
             for &process in processes
                 .iter()
-                .take(needed as usize / mem::size_of::<DWORD>())
+                .take(needed as usize / mem::size_of::<u32>())
             {
-                let handle = processthreadsapi::OpenProcess(
-                    PROCESS_VM_READ | PROCESS_QUERY_INFORMATION,
-                    FALSE,
+                let handle = OpenProcess(
+                    PROCESS_ACCESS_RIGHTS::PROCESS_VM_READ
+                        | PROCESS_ACCESS_RIGHTS::PROCESS_QUERY_INFORMATION,
+                    BOOL::from(false),
                     process,
                 );
-                if handle == NULL {
+
+                if handle.is_null() {
                     continue;
                 }
 
-                let mut name_buf: Vec<i8> = vec![0; MAX_PATH];
-                if psapi::GetModuleBaseNameA(
+                let mut name_buf = [0; 260];
+                if K32GetModuleBaseNameA(
                     handle,
-                    0 as HMODULE,
-                    name_buf.as_mut_ptr(),
-                    name_buf.len() as DWORD,
+                    0,
+                    PSTR(name_buf.as_mut_ptr()),
+                    name_buf.len() as u32,
                 ) == 0
                 {
                     continue;
@@ -136,38 +133,36 @@ impl Process {
     fn get_process_modules(hnd: HANDLE) -> Result<Vec<ProcessModule>, ProcessError> {
         let mut result: Vec<ProcessModule> = vec![];
         unsafe {
-            let mut modules: [HMODULE; 1024] = [null_mut(); 1024];
-            let mut needed: DWORD = 0;
-            if psapi::EnumProcessModulesEx(
+            let mut modules: Vec<isize> = Vec::with_capacity(1024);
+            let mut needed = 0;
+            if K32EnumProcessModulesEx(
                 hnd,
                 modules.as_mut_ptr(),
-                (mem::size_of::<HMODULE>() * modules.len()) as DWORD,
+                (mem::size_of::<isize>() * modules.len()) as u32,
                 &mut needed,
-                psapi::LIST_MODULES_64BIT,
-            ) == FALSE
+                2u32,
+            ) == BOOL::from(false)
             {
                 return Err(ProcessError::ModuleEnumeration(
-                    hnd as u32,
-                    errhandlingapi::GetLastError(),
+                    hnd.0 as u32,
+                    GetLastError().0,
                 ));
             }
 
-            let mut buf = [0; MAX_PATH];
+            let mut buf = [0; 260];
             for &module in modules
                 .iter()
-                .take(needed as usize / mem::size_of::<HMODULE>())
+                .take(needed as usize / mem::size_of::<isize>())
             {
-                if psapi::GetModuleBaseNameA(
+                if K32EnumProcessModulesEx(
                     hnd,
-                    module,
-                    buf.as_mut_ptr() as LPSTR,
-                    buf.len() as u32,
-                ) == 0
+                    module as *mut isize,
+                    *(buf.as_mut_ptr() as *mut u32),
+                    buf.len() as *mut u32,
+                    2u32,
+                ) == BOOL(0)
                 {
-                    return Err(ProcessError::ModuleName(
-                        hnd as u32,
-                        errhandlingapi::GetLastError(),
-                    ));
+                    return Err(ProcessError::ModuleName(hnd.0 as u32, GetLastError().0));
                 }
 
                 let name = CStr::from_ptr(buf.as_ptr() as *const _)
@@ -175,18 +170,15 @@ impl Process {
                     .to_owned()
                     .to_string();
 
-                let mut module_info = psapi::MODULEINFO::default();
-                if psapi::GetModuleInformation(
+                let mut module_info = MODULEINFO::default();
+                if K32GetModuleInformation(
                     hnd,
                     module,
                     &mut module_info,
-                    mem::size_of::<psapi::MODULEINFO>() as DWORD,
-                ) == FALSE
+                    mem::size_of::<MODULEINFO>() as u32,
+                ) == BOOL::from(false)
                 {
-                    return Err(ProcessError::ModuleInformation(
-                        name,
-                        errhandlingapi::GetLastError(),
-                    ));
+                    return Err(ProcessError::ModuleInformation(name, GetLastError().0));
                 }
 
                 result.push(ProcessModule {
@@ -207,14 +199,15 @@ impl Process {
         read: &mut usize,
     ) -> Result<(), MemoryError> {
         unsafe {
-            if memoryapi::ReadProcessMemory(self.handle, addr as LPVOID, buf as LPVOID, sz, read)
-                == FALSE
+            if ReadProcessMemory(
+                self.handle,
+                addr as *mut c_void,
+                buf as *mut c_void,
+                sz,
+                read,
+            ) == BOOL::from(false)
             {
-                return Err(MemoryError::Read(
-                    addr as u64,
-                    errhandlingapi::GetLastError(),
-                    *read,
-                ));
+                return Err(MemoryError::Read(addr as u64, GetLastError().0, *read));
             }
         }
         Ok(())
@@ -260,6 +253,8 @@ impl<const N: usize> Default for UnknownField<N> {
 impl<const N: usize> Eq for UnknownField<N> {}
 
 use std::ops::Deref;
+use std::os::raw::c_char;
+
 impl<T> Deref for RemoteStruct<T> {
     type Target = T;
 
@@ -295,18 +290,14 @@ impl<T: std::default::Default> RemoteStruct<T> {
         unsafe {
             let mut read = 0;
             let read_addr = self.process.modules[self.module].base + self.address;
-            match memoryapi::ReadProcessMemory(
+            match ReadProcessMemory(
                 self.process.handle,
-                read_addr as LPVOID,
-                &mut self.t as *mut _ as LPVOID,
+                read_addr as *mut c_void,
+                &mut self.t as *mut _ as *mut c_void,
                 t_size,
                 &mut read,
             ) {
-                0 => Err(MemoryError::Read(
-                    read_addr,
-                    errhandlingapi::GetLastError(),
-                    read,
-                )),
+                BOOL(0) => Err(MemoryError::Read(read_addr, GetLastError().0, read)),
                 _ => {
                     if read != t_size {
                         Err(MemoryError::IncorrectSize(t_size, read))

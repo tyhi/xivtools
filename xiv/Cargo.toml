@@ -8,6 +8,6 @@ edition = "2018"
 lazy_static = "1.4.0"
 process = { path = "../process" }
 log = "0.4.8"
-winapi = { version = "0.3.8", features = ["minwindef", "windef", "winuser"] }
 anyhow = "1.0.26"
 enum-display-derive = "0.1.0"
+bindings = { path = "../bindings" }

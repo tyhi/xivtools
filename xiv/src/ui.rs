@@ -1,7 +1,7 @@
+#[cfg(windows)]
+use bindings::Windows::Win32::WindowsAndMessaging::{PostMessageA, LPARAM, WPARAM};
 use std::thread::sleep;
 use std::time::Duration;
-#[cfg(windows)]
-use {winapi::shared::minwindef::UINT, winapi::um::winuser::PostMessageA};
 
 // This module handles all interactions with the game UI.
 
@@ -16,19 +16,19 @@ const UI_DELAY: f32 = 0.2;
 
 #[cfg(windows)]
 mod constants {
-    use winapi::um::winuser::*;
-    pub const KEY_UP: i32 = VK_NUMPAD8;
-    pub const KEY_DOWN: i32 = VK_NUMPAD2;
-    pub const KEY_LEFT: i32 = VK_NUMPAD4;
-    pub const KEY_RIGHT: i32 = VK_NUMPAD6;
-    pub const KEY_CONFIRM: i32 = VK_NUMPAD0;
-    pub const KEY_FORWARD: i32 = VK_NUMPAD9;
-    pub const KEY_BACKWARD: i32 = VK_NUMPAD7;
-    pub const KEY_CANCEL: i32 = VK_DECIMAL;
-    pub const KEY_ENTER: i32 = VK_RETURN;
-    pub const KEY_ESCAPE: i32 = VK_ESCAPE;
-    pub const KEY_BACKSPACE: i32 = VK_BACK;
-    pub const KEY_SUBCOMMANDS: i32 = VK_HOME;
+    use bindings::Windows::Win32::WindowsAndMessaging::*;
+    pub const KEY_UP: u32 = VK_NUMPAD8;
+    pub const KEY_DOWN: u32 = VK_NUMPAD2;
+    pub const KEY_LEFT: u32 = VK_NUMPAD4;
+    pub const KEY_RIGHT: u32 = VK_NUMPAD6;
+    pub const KEY_CONFIRM: u32 = VK_NUMPAD0;
+    pub const KEY_FORWARD: u32 = VK_NUMPAD9;
+    pub const KEY_BACKWARD: u32 = VK_NUMPAD7;
+    pub const KEY_CANCEL: u32 = VK_DECIMAL;
+    pub const KEY_ENTER: u32 = VK_RETURN;
+    pub const KEY_ESCAPE: u32 = VK_ESCAPE;
+    pub const KEY_BACKSPACE: u32 = VK_BACK;
+    pub const KEY_SUBCOMMANDS: u32 = VK_HOME;
     pub const MSG_KEY_UP: u32 = WM_KEYUP;
     pub const MSG_KEY_DOWN: u32 = WM_KEYDOWN;
     pub const MSG_KEY_CHAR: u32 = WM_CHAR;
@@ -177,12 +177,12 @@ pub fn clear_window(xiv_handle: super::XivHandle) {
 
 pub fn send_char(xiv_handle: super::XivHandle, c: char) {
     log::trace!("char: {}", c);
-    send_msg(xiv_handle, constants::MSG_KEY_CHAR, c as i32);
+    send_msg(xiv_handle, constants::MSG_KEY_CHAR, c as u32);
     // TODO: Redo this when we have a better timing system
     wait(CHAR_DELAY);
 }
 
-pub fn send_key(xiv_handle: super::XivHandle, c: i32) {
+pub fn send_key(xiv_handle: super::XivHandle, c: u32) {
     log::trace!("key {:x}", c);
     send_msg(xiv_handle, constants::MSG_KEY_DOWN, c);
     send_msg(xiv_handle, constants::MSG_KEY_UP, c);
@@ -190,9 +190,9 @@ pub fn send_key(xiv_handle: super::XivHandle, c: i32) {
 }
 
 // Send a character/key to the XIV window
-fn send_msg(_xiv_handle: super::XivHandle, _msg: u32, _key: i32) {
+fn send_msg(_xiv_handle: super::XivHandle, _msg: u32, _key: u32) {
     #[cfg(windows)]
     unsafe {
-        PostMessageA(_xiv_handle.hwnd, _msg as UINT, _key as usize, 0);
+        PostMessageA(_xiv_handle.hwnd, _msg, WPARAM(_key as usize), LPARAM(0));
     }
 }
